@@ -753,13 +753,18 @@ def fbx_data_bindpose_element(root, me_obj, me, scene_data, arm_obj=None, mat_wo
     blender_path = os.path.dirname(os.path.realpath(__file__))
     skeleton_path = os.path.join(blender_path, "sb-json", skeleton_file)
 
-    stellar_blade_log(scene_data.settings, f"[Stellar Blade Bonefix] Using skeleton file: {skeleton_path}")
-
     with open(skeleton_path, "r") as f:
         skeleton_json = json.load(f)
 
     if arm_obj is None:
         arm_obj = me_obj
+
+    armature_name = arm_obj.name if bones else "(none)"
+    stellar_blade_log(scene_data.settings, f'[Bind pose] Object: "{me_obj.name}" | Mesh: "{me.name}" | Armature: "{armature_name}" | Bones: {len(bones)}')
+    if bones:
+        stellar_blade_log(scene_data.settings, f"[Stellar Blade Bonefix] Using skeleton file: {skeleton_path}")
+    flipped_count = 0
+    skipped_count = 0
     
     bindpose_key = get_blender_bindpose_key(arm_obj.bdata, me)
     fbx_pose = elem_data_single_int64(root, b"Pose", get_fbx_uuid_from_key(bindpose_key))
@@ -812,6 +817,7 @@ def fbx_data_bindpose_element(root, me_obj, me, scene_data, arm_obj=None, mat_wo
         was_flipped = False
         
         if should_flip and scene_data.settings.stellar_blade_fix:
+            flipped_count += 1
             # Apply negative scaling to parent bones
             stellar_blade_log(scene_data.settings, f"        Flipping {bo_obj.name}...")
             scale_mat = Matrix()
@@ -822,6 +828,7 @@ def fbx_data_bindpose_element(root, me_obj, me, scene_data, arm_obj=None, mat_wo
             was_flipped = True
         
         if should_flip and not scene_data.settings.stellar_blade_fix:
+            skipped_count += 1
             stellar_blade_log(scene_data.settings, f"        Skipping flip of {bo_obj.name} (setting not active)...")
 
         if was_flipped:
@@ -838,6 +845,7 @@ def fbx_data_bindpose_element(root, me_obj, me, scene_data, arm_obj=None, mat_wo
         elem_data_single_int64(fbx_posenode, b"Node", bo_obj.fbx_uuid)
         elem_data_single_float64_array(fbx_posenode, b"Matrix", matrix4_to_array(bomat))
 
+    stellar_blade_log(scene_data.settings, f"[Bind pose complete] {len(bones)} bones processed; {flipped_count} flipped; {skipped_count} flips skipped (fix disabled).")
     stellar_blade_log(scene_data.settings, "======================")
 
     return mat_world_obj, mat_world_bones
@@ -3586,8 +3594,9 @@ def save_single(operator, scene, depsgraph, filepath="",
     import bpy_extras.io_utils
 
     reset_stellar_blade_export_log()
-    stellar_blade_log(settings, "FBX export starting... %r" % filepath)
-    start_time = time.process_time()
+    stellar_blade_log(settings, f"FBX export starting... {filepath}")
+    stellar_blade_log(settings, "Bone corrections are evaluated separately for each mesh bind pose.")
+    start_time = time.perf_counter()
 
     # Generate some data about exported scene...
     scene_data = fbx_data_from_scene(scene, depsgraph, settings)
@@ -3630,13 +3639,7 @@ def save_single(operator, scene, depsgraph, filepath="",
     if not media_settings.embed_textures:
         bpy_extras.io_utils.path_reference_copy(media_settings.copy_set)
 
-    stellar_blade_log(settings, "export finished in %.4f sec." % (time.process_time() - start_time))
-    if getattr(settings, "stellar_blade_show_log", False):
-        try:
-            from . import stellar_blade_log_window
-            stellar_blade_log_window.finish()
-        except Exception:
-            pass
+    stellar_blade_log(settings, "Export finished in %.4f sec." % (time.perf_counter() - start_time))
     return {'FINISHED'}
 
 

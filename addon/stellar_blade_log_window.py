@@ -23,10 +23,10 @@ def start(title="Stellar Blade FBX Export Log"):
     if _available is False:
         return False
 
-    _log_path = os.path.join(tempfile.gettempdir(), "stellar_blade_fbx_export.log")
     try:
-        with open(_log_path, "w", encoding="utf-8") as log_file:
-            log_file.write("")
+        # Each export window owns its log; another export must not overwrite it.
+        with tempfile.NamedTemporaryFile(prefix="stellar_blade_fbx_", suffix=".log", delete=False) as log_file:
+            _log_path = log_file.name
     except OSError as ex:
         print(f"Could not create Stellar Blade FBX export log file: {ex}")
         _available = False
@@ -58,7 +58,8 @@ def append(message=""):
                     log_file.write(str(message) + "\n")
             except OSError:
                 pass
-        _commands.put(("append", str(message)))
+        if _thread is not None and _thread.is_alive():
+            _commands.put(("append", str(message)))
 
 
 def finish():
@@ -84,6 +85,7 @@ def _start_powershell_window(title, log_path):
                 [
                     powershell_path,
                     "-NoProfile",
+                    "-STA",
                     "-ExecutionPolicy",
                     "Bypass",
                     "-File",
@@ -189,6 +191,17 @@ def _run_window():
                                  font=("Segoe UI", 10), pady=3)
         close_button.pack(side="right")
 
+        def copy_log():
+            root.clipboard_clear()
+            root.clipboard_append(text.get("1.0", "end-1c"))
+
+        copy_button = tk.Button(button_row, text="Copy Log", command=copy_log, width=12,
+                                background="#545454", foreground=foreground,
+                                activebackground="#646464", activeforeground="#ffffff",
+                                relief="flat", borderwidth=0, highlightthickness=0,
+                                font=("Segoe UI", 10), pady=3)
+        copy_button.pack(side="right", padx=(0, 8))
+
         text_frame = tk.Frame(surface, background=field)
         text_frame.pack(fill="both", expand=True, padx=8)
         text = tk.Text(text_frame, wrap="word", state="disabled", background=field,
@@ -215,9 +228,11 @@ def _run_window():
         if text is None or state["closed"]:
             return
 
+        follow_end = text.yview()[1] >= 0.999
         text.configure(state="normal")
         text.insert("end", message + "\n")
-        text.see("end")
+        if follow_end:
+            text.see("end")
         text.configure(state="disabled")
 
         window = state["window"]

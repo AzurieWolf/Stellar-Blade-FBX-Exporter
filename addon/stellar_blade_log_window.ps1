@@ -13,6 +13,18 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
+public sealed class StellarBladeLogTextBox : RichTextBox {
+    public StellarBladeLogScrollBar LogScrollBar { get; set; }
+    protected override void WndProc(ref Message message) {
+        // RichEdit does not reliably scroll with its native scrollbars disabled.
+        if (message.Msg == 0x020A && LogScrollBar != null) {
+            LogScrollBar.ScrollWheel((short)((message.WParam.ToInt64() >> 16) & 0xffff));
+            message.Result = IntPtr.Zero;
+            return;
+        }
+        base.WndProc(ref message);
+    }
+}
 // Paint the entire scrollbar ourselves: native RichEdit scrollbars can ignore
 // Windows' dark theme, particularly when hosted by Windows PowerShell.
 public sealed class StellarBladeLogScrollBar : Control {
@@ -97,7 +109,10 @@ public sealed class StellarBladeLogScrollBar : Control {
     protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); hovering = false; Invalidate(); }
     protected override void OnMouseWheel(MouseEventArgs e) {
         base.OnMouseWheel(e);
-        wheelRemainder += e.Delta;
+        ScrollWheel(e.Delta);
+    }
+    public void ScrollWheel(int delta) {
+        wheelRemainder += delta;
         int steps = wheelRemainder / 120;
         wheelRemainder %= 120;
         int lines = SystemInformation.MouseWheelScrollLines;
@@ -150,7 +165,7 @@ $titleBar.Add_MouseMove({
 })
 $titleBar.Add_MouseUp({ $titleBar.Capture = $false })
 
-$textBox = New-Object System.Windows.Forms.RichTextBox
+$textBox = New-Object StellarBladeLogTextBox
 $textBox.Multiline = $true
 $textBox.ReadOnly = $true
 $textBox.ScrollBars = 'None'
@@ -168,6 +183,7 @@ $logPanel.BackColor = $field
 $logPanel.Padding = New-Object System.Windows.Forms.Padding(10, 8, 8, 8)
 $logPanel.Controls.Add($textBox)
 $scrollBar = New-Object StellarBladeLogScrollBar($textBox)
+$textBox.LogScrollBar = $scrollBar
 $logPanel.Controls.Add($scrollBar)
 
 $bodyPanel = New-Object System.Windows.Forms.Panel
@@ -196,6 +212,31 @@ $closeButton.Top = 8
 $closeButton.Add_Click({ $form.Close() })
 
 $buttonPanel.Controls.Add($closeButton)
+$copyButton = New-Object System.Windows.Forms.Button
+$copyButton.Text = 'Copy Log'
+$copyButton.Size = $closeButton.Size
+$copyButton.Top = $closeButton.Top
+$copyButton.Left = $closeButton.Left - $copyButton.Width - 8
+$copyButton.Anchor = 'Top,Right'
+$copyButton.FlatStyle = 'Flat'
+$copyButton.FlatAppearance.BorderSize = 0
+$copyButton.BackColor = $buttonColor
+$copyButton.ForeColor = $form.ForeColor
+$copyButton.FlatAppearance.MouseOverBackColor = $closeButton.FlatAppearance.MouseOverBackColor
+$copyButton.Add_Click({
+    try {
+        # Include data written since the last timer tick, and copy the entire log.
+        if (Test-Path -LiteralPath $LogPath) {
+            Update-LogContents ([System.IO.File]::ReadAllText($LogPath))
+        }
+        if ($textBox.TextLength -gt 0) {
+            [System.Windows.Forms.Clipboard]::SetText($textBox.Text)
+        }
+    } catch {
+        [void][System.Windows.Forms.MessageBox]::Show($form, 'Could not copy the log. Please try again.', 'Copy Log')
+    }
+})
+$buttonPanel.Controls.Add($copyButton)
 $grip = New-Object System.Windows.Forms.Label
 $grip.Text = [char]0x25E2
 $grip.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#777777')
@@ -225,24 +266,38 @@ $form.Controls.Add($titleBar)
 
 $buttonPanel.Add_Resize({
     $closeButton.Left = $buttonPanel.Width - $closeButton.Width - 30
+    $copyButton.Left = $closeButton.Left - $copyButton.Width - 8
     $grip.Left = $buttonPanel.Width - 24
     $grip.Top = $buttonPanel.Height - 24
 })
 
-$lastText = ""
+function Update-LogContents([string]$content) {
+    $content = $content.Replace("`r`n", "`n")
+    if ($content -ceq $script:lastText) { return }
+    $firstLine = $scrollBar.FirstLine
+    $followEnd = $firstLine -ge ($scrollBar.Maximum - 1)
+    $selectionStart = $textBox.SelectionStart
+    $selectionLength = $textBox.SelectionLength
+    if ($content.StartsWith($script:lastText, [System.StringComparison]::Ordinal)) {
+        $textBox.AppendText($content.Substring($script:lastText.Length))
+    } else {
+        $textBox.Text = $content
+    }
+    $script:lastText = $content
+    $textBox.Select([Math]::Min($selectionStart, $textBox.TextLength),
+        [Math]::Min($selectionLength, [Math]::Max(0, $textBox.TextLength - $selectionStart)))
+    if ($followEnd) { $scrollBar.ScrollToLine($scrollBar.Maximum) }
+    else { $scrollBar.ScrollToLine($firstLine) }
+}
+
+$script:lastText = ""
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 100
 $timer.Add_Tick({
     $scrollBar.Invalidate()
     if (Test-Path -LiteralPath $LogPath) {
         try {
-            $text = [System.IO.File]::ReadAllText($LogPath)
-            if ($text -ne $lastText) {
-                $script:lastText = $text
-                $textBox.Text = $text
-                $textBox.SelectionStart = $textBox.TextLength
-                $textBox.ScrollToCaret()
-            }
+            Update-LogContents ([System.IO.File]::ReadAllText($LogPath))
         }
         catch {
         }

@@ -2,9 +2,9 @@
 A modified version of Blender's FBX Exporter to fix flipped bones from Stellar Blade
 
 ## Installation
-Drag and drop the .zip archive into the blender window and click OK, or navigate to Edit > Preferences > Get Extensions
+Drag and drop the .zip archive into the blender window and click OK, or navigate to `Edit > Preferences > Get Extensions`
 
-Click the V button on the top right and select "Install from disk..." then select the .zip archive.
+Click the `V` button on the top right and select `Install from Disk...` then select the .zip archive.
 
 <img width="250" height="185" alt="Install from disk... Screenshot" src="https://github.com/user-attachments/assets/83816179-a12f-4e22-8ed3-346a324a3ea0" />
 

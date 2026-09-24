@@ -223,6 +223,12 @@ $copyButton.FlatAppearance.BorderSize = 0
 $copyButton.BackColor = $buttonColor
 $copyButton.ForeColor = $form.ForeColor
 $copyButton.FlatAppearance.MouseOverBackColor = $closeButton.FlatAppearance.MouseOverBackColor
+$copyResetTimer = New-Object System.Windows.Forms.Timer
+$copyResetTimer.Interval = 2000
+$copyResetTimer.Add_Tick({
+    $copyResetTimer.Stop()
+    $copyButton.Text = 'Copy Log'
+})
 $copyButton.Add_Click({
     try {
         # Include data written since the last timer tick, and copy the entire log.
@@ -231,6 +237,9 @@ $copyButton.Add_Click({
         }
         if ($textBox.TextLength -gt 0) {
             [System.Windows.Forms.Clipboard]::SetText($textBox.Text)
+            $copyButton.Text = 'Copied'
+            $copyResetTimer.Stop()
+            $copyResetTimer.Start()
         }
     } catch {
         [void][System.Windows.Forms.MessageBox]::Show($form, 'Could not copy the log. Please try again.', 'Copy Log')
@@ -310,6 +319,8 @@ $form.Add_Shown({
 })
 
 $form.Add_FormClosed({
+    $copyResetTimer.Stop()
+    $copyResetTimer.Dispose()
     $timer.Stop()
     $timer.Dispose()
 })

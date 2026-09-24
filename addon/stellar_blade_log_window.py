@@ -191,9 +191,22 @@ def _run_window():
                                  font=("Segoe UI", 10), pady=3)
         close_button.pack(side="right")
 
+        copy_reset = None
+
+        def reset_copy_label():
+            nonlocal copy_reset
+            copy_reset = None
+            if copy_button.winfo_exists():
+                copy_button.configure(text="Copy Log")
+
         def copy_log():
+            nonlocal copy_reset
             root.clipboard_clear()
             root.clipboard_append(text.get("1.0", "end-1c"))
+            copy_button.configure(text="Copied")
+            if copy_reset is not None:
+                root.after_cancel(copy_reset)
+            copy_reset = root.after(2000, reset_copy_label)
 
         copy_button = tk.Button(button_row, text="Copy Log", command=copy_log, width=12,
                                 background="#545454", foreground=foreground,

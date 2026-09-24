@@ -1,2 +1,30 @@
 # Stellar Blade FBX Exporter
 A modified version of Blender's FBX Exporter to fix flipped bones from Stellar Blade
+
+## Installation
+Drag and drop the .zip archive into the blender window and click OK, or navigate to Edit > Preferences > Get Extensions
+
+Click the V button on the top right and select "Install from disk..." then select the .zip archive.
+
+<img width="250" height="185" alt="Install from disk... Screenshot" src="https://github.com/user-attachments/assets/83816179-a12f-4e22-8ed3-346a324a3ea0" />
+
+### Important
+The FBX Exporter won't work if you import with Sockets enabled. In case you're importing meshes with `.PSK` format, its required for you to change this option inside FModel.
+
+<img width="866" height="586" alt="463414783-7062aee0-5ef3-4213-9cc0-5958c50c2597" src="https://github.com/user-attachments/assets/ec204fc5-cc08-409c-88c3-0b8689b1ec9a" />
+
+
+In case you're using `.uemodel` for Mesh formats, there's nothing to do in FModel, but you'll need to make sure you have the `Import Sockets` turned OFF, when importing your mesh to blender, you can disable it in the UEFormat Importer tab.
+
+<img width="230" height="326" alt="463414929-ae89f655-44c4-4ce8-bca9-38bc4a6d3458" src="https://github.com/user-attachments/assets/77d52e82-67a7-434e-97c4-8c6d3ab4a21e" />
+
+## More Information
+Be sure to read this [Stellar Blade Modding Wiki Tutorial](https://github.com/Stellar-Blade-Modding-Team/Stellar-Blade-Modding-Guide/wiki/Models) by HeartBee.
+
+## Credits
+[AzurieWolf](https://github.com/AzurieWolf),
+[ByLemi21](https://github.com/ByLemi21),
+
+[Njaecha](https://github.com/Njaecha),
+[HeartBee](https://github.com/StellarBladeModding),
+Salt (Providing a list with the inverted bones)

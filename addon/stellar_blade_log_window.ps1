@@ -8,12 +8,101 @@ param(
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-Add-Type -TypeDefinition @'
+Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
 using System;
+using System.Drawing;
+using System.Windows.Forms;
 using System.Runtime.InteropServices;
-public static class StellarBladeLogTheme {
-    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
-    public static extern int SetWindowTheme(IntPtr window, string appName, string idList);
+// Paint the entire scrollbar ourselves: native RichEdit scrollbars can ignore
+// Windows' dark theme, particularly when hosted by Windows PowerShell.
+public sealed class StellarBladeLogScrollBar : Control {
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+    private readonly RichTextBox editor;
+    private bool dragging;
+    private bool hovering;
+    private int dragOffset;
+    private int wheelRemainder;
+
+    public StellarBladeLogScrollBar(RichTextBox editor) {
+        this.editor = editor;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        BackColor = Color.FromArgb(36, 36, 36);
+        Width = 14;
+        Dock = DockStyle.Right;
+        TabStop = false;
+        AccessibleName = "Export log scrollbar";
+        AccessibleRole = AccessibleRole.ScrollBar;
+        editor.VScroll += delegate { Invalidate(); };
+        editor.TextChanged += delegate { Invalidate(); };
+        editor.Resize += delegate { Invalidate(); };
+    }
+
+    public int FirstLine {
+        get { return (int)SendMessage(editor.Handle, 0x00CE, IntPtr.Zero, IntPtr.Zero); }
+    }
+    private int LineCount { get { return editor.GetLineFromCharIndex(editor.TextLength) + 1; } }
+    private int PageLines { get { return Math.Max(1, editor.ClientSize.Height / editor.Font.Height); } }
+    public int Maximum { get { return Math.Max(0, LineCount - PageLines); } }
+    public Rectangle ThumbBounds {
+        get {
+            int height = Math.Min(Height, Math.Max(28, (int)((long)Height * PageLines / LineCount)));
+            int top = Maximum == 0 ? 0 : (int)((long)(Height - height) * Math.Min(FirstLine, Maximum) / Maximum);
+            return new Rectangle(3, top, Math.Max(1, Width - 6), height);
+        }
+    }
+    public void ScrollToLine(int line) {
+        int target = Math.Max(0, Math.Min(Maximum, line));
+        SendMessage(editor.Handle, 0x00B6, IntPtr.Zero, new IntPtr(target - FirstLine));
+        Invalidate();
+    }
+    protected override void OnPaint(PaintEventArgs e) {
+        e.Graphics.Clear(BackColor);
+        if (Maximum == 0) return;
+        using (var brush = new SolidBrush(hovering || dragging ? Color.FromArgb(112, 112, 112) : Color.FromArgb(84, 84, 84))) {
+            e.Graphics.FillRectangle(brush, ThumbBounds);
+        }
+    }
+    protected override void OnMouseDown(MouseEventArgs e) {
+        base.OnMouseDown(e);
+        if (e.Button != MouseButtons.Left || Maximum == 0) return;
+        Rectangle thumb = ThumbBounds;
+        if (e.Y >= thumb.Top && e.Y < thumb.Bottom) {
+            dragging = true;
+            dragOffset = e.Y - thumb.Top;
+            Capture = true;
+        } else {
+            ScrollToLine(FirstLine + (e.Y < thumb.Top ? -PageLines : PageLines));
+        }
+        Invalidate();
+    }
+    protected override void OnMouseMove(MouseEventArgs e) {
+        base.OnMouseMove(e);
+        if (dragging) {
+            int travel = Math.Max(1, Height - ThumbBounds.Height);
+            int position = Math.Max(0, Math.Min(travel, e.Y - dragOffset));
+            ScrollToLine((int)((long)position * Maximum / travel));
+        }
+    }
+    protected override void OnMouseUp(MouseEventArgs e) {
+        base.OnMouseUp(e);
+        if (e.Button == MouseButtons.Left) { dragging = false; Capture = false; Invalidate(); }
+    }
+    protected override void OnMouseCaptureChanged(EventArgs e) {
+        base.OnMouseCaptureChanged(e);
+        if (!Capture) { dragging = false; Invalidate(); }
+    }
+    protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); hovering = true; Invalidate(); }
+    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); hovering = false; Invalidate(); }
+    protected override void OnMouseWheel(MouseEventArgs e) {
+        base.OnMouseWheel(e);
+        wheelRemainder += e.Delta;
+        int steps = wheelRemainder / 120;
+        wheelRemainder %= 120;
+        int lines = SystemInformation.MouseWheelScrollLines;
+        ScrollToLine(FirstLine - steps * (lines < 0 ? PageLines : lines));
+    }
 }
 '@
 
@@ -64,7 +153,7 @@ $titleBar.Add_MouseUp({ $titleBar.Capture = $false })
 $textBox = New-Object System.Windows.Forms.RichTextBox
 $textBox.Multiline = $true
 $textBox.ReadOnly = $true
-$textBox.ScrollBars = 'Vertical'
+$textBox.ScrollBars = 'None'
 $textBox.WordWrap = $true
 $textBox.DetectUrls = $false
 $textBox.BorderStyle = 'None'
@@ -78,6 +167,8 @@ $logPanel.Dock = 'Fill'
 $logPanel.BackColor = $field
 $logPanel.Padding = New-Object System.Windows.Forms.Padding(10, 8, 8, 8)
 $logPanel.Controls.Add($textBox)
+$scrollBar = New-Object StellarBladeLogScrollBar($textBox)
+$logPanel.Controls.Add($scrollBar)
 
 $bodyPanel = New-Object System.Windows.Forms.Panel
 $bodyPanel.Dock = 'Fill'
@@ -142,6 +233,7 @@ $lastText = ""
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 100
 $timer.Add_Tick({
+    $scrollBar.Invalidate()
     if (Test-Path -LiteralPath $LogPath) {
         try {
             $text = [System.IO.File]::ReadAllText($LogPath)
@@ -158,8 +250,6 @@ $timer.Add_Tick({
 })
 
 $form.Add_Shown({
-    # Dark scrollbar on Windows versions that support the Explorer dark theme.
-    [void][StellarBladeLogTheme]::SetWindowTheme($textBox.Handle, 'DarkMode_Explorer', $null)
     $timer.Start()
     $form.Activate()
 })

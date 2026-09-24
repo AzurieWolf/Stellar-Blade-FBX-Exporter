@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "stellar_blade_fbx_exporter"
-version = "1.0.0"
+version = "1.0.1"
 name = "Stellar Blade FBX Exporter"
 tagline = "Import and export FBX files with Stellar Blade bone fixes"
 maintainer = "AzurieWolf, Lemi21, Njaecha"

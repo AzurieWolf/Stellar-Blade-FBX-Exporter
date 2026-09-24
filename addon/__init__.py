@@ -2,6 +2,9 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+# Blender registers bpy.props calls in annotations; these are not static type hints.
+# pyright: reportInvalidTypeForm=false
+
 bl_info = {
     "name": "Stellar Blade FBX format",
     "author": "Campbell Barton, Bastien Montagne, Jens Restemeier, @Mysteryem",
@@ -18,23 +21,25 @@ bl_info = {
 
 if "bpy" in locals():
     import importlib
-    if "import_fbx" in locals():
-        importlib.reload(import_fbx)
-    if "export_fbx_bin" in locals():
-        importlib.reload(export_fbx_bin)
-    if "export_fbx" in locals():
-        importlib.reload(export_fbx)
+    import sys
+
+    # Reload only submodules already loaded by the import/export operators.
+    for _module_name in ("import_fbx", "export_fbx_bin"):
+        _module = sys.modules.get(f"{__name__}.{_module_name}")
+        if _module is not None:
+            importlib.reload(_module)
 
 
-import bpy
-from bpy.props import (
+# Blender supplies these modules at runtime; standalone Python does not.
+import bpy  # pyright: ignore[reportMissingImports]
+from bpy.props import (  # pyright: ignore[reportMissingImports]
     StringProperty,
     BoolProperty,
     FloatProperty,
     EnumProperty,
     CollectionProperty,
 )
-from bpy_extras.io_utils import (
+from bpy_extras.io_utils import (  # pyright: ignore[reportMissingImports]
     ImportHelper,
     ExportHelper,
     orientation_helper,
@@ -597,7 +602,7 @@ class ExportStellarBladeFBX(bpy.types.Operator, ExportHelper):
         return self.batch_mode == 'OFF'
 
     def execute(self, context):
-        from mathutils import Matrix
+        from mathutils import Matrix  # pyright: ignore[reportMissingImports]
         if not self.filepath:
             raise Exception("filepath not set")
 

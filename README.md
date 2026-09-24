@@ -36,7 +36,8 @@ The release ZIP includes that complete folder as `log_window/`. The small `addon
 ## Credits
 [AzurieWolf](https://github.com/AzurieWolf),
 [ByLemi21](https://github.com/ByLemi21),
-
 [Njaecha](https://github.com/Njaecha),
 [HeartBee](https://github.com/StellarBladeModding),
 Salt (Providing a list with the inverted bones)
+
+This is a fork of [Blender_SB_FBX_Fixes](https://github.com/ByLemi21/Blender_SB_FBX_Fixes) modified to be a standalone addon.

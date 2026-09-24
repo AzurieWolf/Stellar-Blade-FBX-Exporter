@@ -94,6 +94,7 @@ def _start_powershell_window(title, log_path):
                     title,
                 ],
                 close_fds=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except Exception as ex:
             last_error = ex
@@ -104,10 +105,18 @@ def _start_powershell_window(title, log_path):
 
 def _run_window():
     import tkinter as tk
-    from tkinter import scrolledtext
+    from tkinter import ttk
 
     root = tk.Tk()
     root.withdraw()
+    # Fixed palette matching Blender's default dark theme.
+    background, field, foreground = "#303030", "#242424", "#d4d4d4"
+    style = ttk.Style(root)
+    style.theme_use("clam")
+    style.configure("Log.Vertical.TScrollbar", background="#545454",
+                    troughcolor=field, bordercolor=field, arrowcolor=foreground,
+                    lightcolor="#545454", darkcolor="#545454")
+    style.map("Log.Vertical.TScrollbar", background=[("active", "#646464")])
 
     state = {
         "window": None,
@@ -129,17 +138,69 @@ def _run_window():
 
         window = tk.Toplevel(root)
         window.title(title)
-        window.geometry("900x520")
+        window.overrideredirect(True)
+        window.configure(background="#484848")
+        x = max(0, (window.winfo_screenwidth() - 900) // 2)
+        y = max(0, (window.winfo_screenheight() - 520) // 2)
+        window.geometry(f"900x520+{x}+{y}")
         window.protocol("WM_DELETE_WINDOW", close_window)
+        window.bind("<Alt-F4>", lambda event: close_window())
 
-        text = scrolledtext.ScrolledText(window, wrap="word", state="disabled")
-        text.pack(fill="both", expand=True, padx=8, pady=(8, 4))
+        surface = tk.Frame(window, background=background)
+        surface.pack(fill="both", expand=True, padx=1, pady=1)
+        titlebar = tk.Label(surface, text=title, anchor="w", padx=12, pady=9,
+                            background=background, foreground=foreground,
+                            font=("Segoe UI", 10))
+        titlebar.pack(fill="x")
+        drag = {}
 
-        button_row = tk.Frame(window)
-        button_row.pack(fill="x", padx=8, pady=(0, 8))
+        def begin_drag(event):
+            drag.update(x=event.x_root - window.winfo_x(), y=event.y_root - window.winfo_y())
 
-        close_button = tk.Button(button_row, text="Close", command=close_window, width=12)
+        def move_window(event):
+            window.geometry(f"{event.x_root - drag['x']:+d}{event.y_root - drag['y']:+d}")
+
+        titlebar.bind("<ButtonPress-1>", begin_drag)
+        titlebar.bind("<B1-Motion>", move_window)
+
+        button_row = tk.Frame(surface, background=background)
+        button_row.pack(side="bottom", fill="x", padx=8, pady=8)
+
+        grip = tk.Label(button_row, text="\u25e2", background=background,
+                        foreground="#777777", cursor="size_nw_se")
+        grip.pack(side="right", padx=(8, 0), anchor="s")
+        resize = {}
+
+        def begin_resize(event):
+            resize.update(x=event.x_root, y=event.y_root,
+                          width=window.winfo_width(), height=window.winfo_height())
+
+        def resize_window(event):
+            width = max(480, resize["width"] + event.x_root - resize["x"])
+            height = max(280, resize["height"] + event.y_root - resize["y"])
+            window.geometry(f"{width}x{height}")
+
+        grip.bind("<ButtonPress-1>", begin_resize)
+        grip.bind("<B1-Motion>", resize_window)
+        close_button = tk.Button(button_row, text="Close", command=close_window, width=12,
+                                 background="#545454", foreground=foreground,
+                                 activebackground="#646464", activeforeground="#ffffff",
+                                 relief="flat", borderwidth=0, highlightthickness=0,
+                                 font=("Segoe UI", 10), pady=3)
         close_button.pack(side="right")
+
+        text_frame = tk.Frame(surface, background=field)
+        text_frame.pack(fill="both", expand=True, padx=8)
+        text = tk.Text(text_frame, wrap="word", state="disabled", background=field,
+                       foreground=foreground, insertbackground=foreground,
+                       selectbackground="#4772b3", selectforeground="#ffffff",
+                       relief="flat", borderwidth=0, highlightthickness=0,
+                       padx=10, pady=8, font=("Consolas", 10))
+        scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=text.yview,
+                                  style="Log.Vertical.TScrollbar")
+        scrollbar.pack(side="right", fill="y")
+        text.configure(yscrollcommand=scrollbar.set)
+        text.pack(fill="both", expand=True)
 
         state["window"] = window
         state["text"] = text

@@ -1,8 +1,8 @@
-# Run from any directory; no Blender or Python installation is required.
+# Run from any directory. Builds the Windows log viewer before packaging.
 # The manifest is the source of truth for the release version.
 # Requires Windows PowerShell 5.1 or later.
 [CmdletBinding()]
-param()
+param([string]$Python = 'python')
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -23,6 +23,9 @@ try {
     }
 
     $version = $versionMatch.Groups['version'].Value
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '[Build Log Window].ps1') -Python $Python
+    if ($LASTEXITCODE -ne 0) { throw 'Log window build failed; release ZIP was not replaced.' }
+    $bundlePath = Join-Path $PSScriptRoot 'dist\StellarBladeExportLog'
     $releasePath = Join-Path $PSScriptRoot 'releases'
     [System.IO.Directory]::CreateDirectory($releasePath) | Out-Null
     $archivePath = Join-Path $releasePath "stellar-blade-fbx-exporter-v$version.zip"
@@ -34,12 +37,24 @@ try {
     try {
         foreach ($file in (Get-ChildItem -LiteralPath $addonPath -File -Recurse -Force | Sort-Object FullName)) {
             $relativePath = $file.FullName.Substring($addonPath.Length + 1).Replace('\', '/')
+            if ($relativePath -eq 'stellar_blade_log_window.ps1' -or $relativePath.StartsWith('log_window/')) {
+                continue
+            }
             # Match the manifest's current build exclusions, plus compiled Python files.
             if ($relativePath -match '(^|/)(\.[^/]*|__pycache__)(/|$)' -or
                 $relativePath -match '\.(zip|pyc|pyo)$' -or
                 ($file.Attributes -band [System.IO.FileAttributes]::Hidden)) {
                 continue
             }
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $archive, $file.FullName, $relativePath, [System.IO.Compression.CompressionLevel]::Optimal
+            ) | Out-Null
+            $fileCount++
+        }
+        # Include the complete runtime bundle, including dependency ZIPs and bytecode.
+        # Applying add-on source exclusions here would break the standalone viewer.
+        foreach ($file in (Get-ChildItem -LiteralPath $bundlePath -File -Recurse -Force | Sort-Object FullName)) {
+            $relativePath = 'log_window/' + $file.FullName.Substring($bundlePath.Length + 1).Replace('\', '/')
             [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
                 $archive, $file.FullName, $relativePath, [System.IO.Compression.CompressionLevel]::Optimal
             ) | Out-Null

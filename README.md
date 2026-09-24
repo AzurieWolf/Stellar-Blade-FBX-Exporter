@@ -21,6 +21,18 @@ In case you're using `.uemodel` for Mesh formats, there's nothing to do in FMode
 ## More Information
 Be sure to read this [Stellar Blade Modding Wiki Tutorial](https://github.com/Stellar-Blade-Modding-Team/Stellar-Blade-Modding-Guide/wiki/Models) by HeartBee.
 
+## Building Windows releases
+
+Build requirements: 64-bit Windows Python with Tcl/Tk (the standard python.org installer includes it), plus `python -m pip install -r requirements-build.txt`.
+
+- Run `[Build Log Window].bat` to build only the standalone log viewer.
+- Run `[Package].bat` to rebuild the viewer and create `releases/stellar-blade-fbx-exporter-v<manifest-version>.zip`.
+- To select another Python installation, run `& '.\[Package].ps1' -Python 'C:\Path\To\python.exe'` or pass `-Python` to `[Build Log Window].bat`.
+
+The viewer is built in `dist/StellarBladeExportLog/`, with `StellarBladeExportLog.exe` beside a `dependencies/` folder. Python, Tcl/Tk, and imported modules are distributed externally in this folder instead of a self-extracting EXE. Keep the entire folder together.
+
+The release ZIP includes that complete folder as `log_window/`. The small `addon/stellar_blade_log_window.py` module remains as Blender's launcher and log writer; the GUI source lives in `tools/log_window.py` and is not shipped as a loose script. The old PowerShell viewer is excluded from the ZIP. Installed users do not need Python or PowerShell to open the log viewer. The viewer build targets Windows x64.
+
 ## Credits
 [AzurieWolf](https://github.com/AzurieWolf),
 [ByLemi21](https://github.com/ByLemi21),

@@ -7,6 +7,8 @@ $ErrorActionPreference = 'Stop'
 try {
     $projectPath = [System.IO.Path]::GetFullPath($PSScriptRoot)
     $sourcePath = Join-Path $projectPath 'tools\log_window.py'
+    $iconPath = Join-Path $projectPath 'tools\logwin.ico'
+    $titleIconPath = Join-Path $projectPath 'tools\logwin.png'
     $distPath = Join-Path $projectPath 'dist'
     $workPath = Join-Path $projectPath 'build\log-window'
     $specPath = Join-Path $projectPath 'build'
@@ -17,11 +19,15 @@ try {
         }
     }
     if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) { throw "Missing window source: $sourcePath" }
+    foreach ($asset in @($iconPath, $titleIconPath)) {
+        if (-not (Test-Path -LiteralPath $asset -PathType Leaf)) { throw "Missing window icon: $asset" }
+    }
     & $Python -c "import sys, struct, tkinter, PyInstaller; assert sys.platform == 'win32' and struct.calcsize('P') == 8, 'Use 64-bit Windows Python'; assert int(PyInstaller.__version__.split('.')[0]) >= 6, 'PyInstaller 6 or newer is required'"
     if ($LASTEXITCODE -ne 0) {
         throw 'Install 64-bit Python with Tcl/Tk, then run: python -m pip install -r requirements-build.txt'
     }
     & $Python -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
+        --icon $iconPath --add-data "${iconPath};." --add-data "${titleIconPath};." `
         --debug noarchive --contents-directory dependencies --name StellarBladeExportLog `
         --distpath $distPath --workpath $workPath --specpath $specPath $sourcePath
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE." }

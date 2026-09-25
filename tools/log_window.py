@@ -65,6 +65,9 @@ def run_window(log_path, title, parent=None):
 
     root = tk.Tk()
     root.withdraw()
+    assets = Path(__file__).resolve().parent
+    root.iconbitmap(default=str(assets / "logwin.ico"))
+    title_icon = tk.PhotoImage(master=root, file=str(assets / "logwin.png"))
     # Fixed palette matching Blender's default dark theme.
     background, field, foreground = "#303030", "#242424", "#d4d4d4"
     style = ttk.Style(root)
@@ -97,6 +100,7 @@ def run_window(log_path, title, parent=None):
 
         window = tk.Toplevel(root)
         window.title(title)
+        window.iconbitmap(str(assets / "logwin.ico"))
         window.overrideredirect(True)
         window.configure(background="#484848")
         x = max(0, (window.winfo_screenwidth() - 900) // 2)
@@ -107,10 +111,11 @@ def run_window(log_path, title, parent=None):
 
         surface = tk.Frame(window, background=background)
         surface.pack(fill="both", expand=True, padx=1, pady=1)
-        titlebar = tk.Label(surface, text=title, anchor="w", padx=12, pady=9,
+        titlebar = tk.Label(surface, text=title, image=title_icon, compound="left",
+                            anchor="w", padx=4, pady=9,
                             background=background, foreground=foreground,
                             font=("Segoe UI", 10))
-        titlebar.pack(fill="x")
+        titlebar.pack(fill="x", padx=8)
         drag = {}
 
         def begin_drag(event):

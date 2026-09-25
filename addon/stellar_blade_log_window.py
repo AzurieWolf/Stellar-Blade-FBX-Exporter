@@ -4,6 +4,7 @@
 """Blender-side log writer and launcher for the standalone log viewer."""
 
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 
@@ -26,7 +27,8 @@ def start(title="Stellar Blade FBX Export Log"):
         with tempfile.NamedTemporaryFile(prefix="stellar_blade_fbx_", suffix=".log", delete=False) as log_file:
             log_path = Path(log_file.name)
         _process = subprocess.Popen(
-            [str(executable), "--log-path", str(log_path), "--title", title],
+            [str(executable), "--log-path", str(log_path), "--title", title,
+             "--parent-pid", str(os.getpid())],
             cwd=str(executable.parent), close_fds=True,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )

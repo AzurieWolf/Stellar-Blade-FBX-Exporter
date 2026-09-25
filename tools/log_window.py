@@ -2,9 +2,64 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from pathlib import Path
+import ctypes
+from ctypes import wintypes
+import sys
 
 
-def run_window(log_path, title):
+class ParentProcess:
+    """Keep a handle to the launching Blender instance, even if its PID is reused."""
+
+    def __init__(self, pid):
+        self.kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        self.kernel32.OpenProcess.restype = wintypes.HANDLE
+        self.kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        self.kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        self.kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.kernel32.CloseHandle.restype = wintypes.BOOL
+        # SYNCHRONIZE only: no access to Blender's memory or ability to stop it.
+        self.handle = self.kernel32.OpenProcess(0x00100000, False, pid)
+
+    def is_alive(self):
+        return bool(self.handle) and self.kernel32.WaitForSingleObject(self.handle, 0) == 0x102
+
+    def close(self):
+        if self.handle:
+            self.kernel32.CloseHandle(self.handle)
+            self.handle = None
+
+
+def show_in_taskbar(window):
+    if sys.platform != "win32":
+        return
+    # Tk's override-redirect windows normally use WS_EX_TOOLWINDOW. Explicitly
+    # request a taskbar button on the native wrapper before mapping it again.
+    window.update_idletasks()
+    window.withdraw()
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+    user32.GetAncestor.restype = wintypes.HWND
+    user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+    user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+    user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
+    user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                                   ctypes.c_int, ctypes.c_int, wintypes.UINT]
+    user32.SetWindowPos.restype = wintypes.BOOL
+    hwnd = user32.GetAncestor(window.winfo_id(), 2)  # GA_ROOT: Tk's native wrapper.
+    if not hwnd:
+        raise ctypes.WinError(ctypes.get_last_error())
+    styles = user32.GetWindowLongPtrW(hwnd, -20)
+    ctypes.set_last_error(0)
+    previous = user32.SetWindowLongPtrW(hwnd, -20, (styles & ~0x80) | 0x40000)
+    if not previous and ctypes.get_last_error():
+        raise ctypes.WinError(ctypes.get_last_error())
+    user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, 0x0037)
+    window.deiconify()
+
+
+def run_window(log_path, title, parent=None):
     import tkinter as tk
     from tkinter import ttk
 
@@ -26,6 +81,8 @@ def run_window(log_path, title):
     }
 
     def close_window():
+        if state["closed"]:
+            return
         window = state["window"]
         state["closed"] = True
         state["window"] = None
@@ -133,6 +190,7 @@ def run_window(log_path, title):
         state["text"] = text
         state["closed"] = False
 
+        show_in_taskbar(window)
         window.lift()
         window.focus_force()
         window.update_idletasks()
@@ -164,6 +222,9 @@ def run_window(log_path, title):
         text.configure(state="disabled")
 
     def poll():
+        if parent is not None and not parent.is_alive():
+            close_window()
+            return
         refresh_log()
         root.after(100, poll)
 
@@ -177,8 +238,15 @@ def main():
     parser = argparse.ArgumentParser(description="Stellar Blade FBX export log viewer")
     parser.add_argument("--log-path", type=Path, required=True)
     parser.add_argument("--title", default="Stellar Blade FBX Export Log")
+    parser.add_argument("--parent-pid", type=int, help="Close when this Blender process exits")
     args = parser.parse_args()
-    run_window(args.log_path, args.title)
+    parent = ParentProcess(args.parent_pid) if args.parent_pid is not None else None
+    try:
+        if parent is None or parent.is_alive():
+            run_window(args.log_path, args.title, parent)
+    finally:
+        if parent is not None:
+            parent.close()
 
 
 if __name__ == "__main__":

@@ -1,5 +1,17 @@
+![Blender Compatibility](https://img.shields.io/badge/Blender-4.2.23%20--%205.2.2-orange?logo=blender&logoColor=white)
 # Stellar Blade FBX Exporter
 A modified version of Blender's FBX Exporter to fix flipped bones from Stellar Blade
+
+## Compatibility
+
+| Software | Supported Versions |
+|----------|--------------------|
+| Blender | 4.2.23 – 5.2.2 |
+| Windows | 64-bit (x64) |
+
+**Tested Blender versions:** 4.2.23 and 5.2.2.
+
+> **Note:** Blender versions outside the supported range have not been tested and may not function correctly.
 
 ## Installation
 Drag and drop the .zip archive into the blender window and click OK, or navigate to `Edit > Preferences > Get Extensions`

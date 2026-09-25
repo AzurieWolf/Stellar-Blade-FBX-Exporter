@@ -565,10 +565,12 @@ class ExportStellarBladeFBX(bpy.types.Operator, ExportHelper):
         description="Show a Stellar Blade export log window after exporting",
         default=True,
     )
+    # Accept legacy presets, but bone correction is always applied by the exporter.
     stellar_blade_fix: BoolProperty(
         name="Inverted Bones Fix",
-        description="Export with bone inversions needed by Stellar Blade (by Lami21 and Njaecha)",
+        description="Stellar Blade bone corrections are always enabled",
         default=True,
+        options={'HIDDEN', 'SKIP_SAVE'},
     )
 
     stellar_blade_skeleton: EnumProperty(
@@ -722,9 +724,9 @@ def export_panel_stellar_blade(layout, operator):
     header.label(text="Stellar Blade")
     if body:
         body.label(text="Stellar Blade FBX Exporter")
-        body.prop(operator, "stellar_blade_show_log")
-        body.prop(operator, "stellar_blade_fix")
+        body.label(text="Automatically fixes inverted bones.")
         body.prop(operator, "stellar_blade_skeleton")
+        body.prop(operator, "stellar_blade_show_log")
 
 class IO_FH_stellar_blade_fbx(bpy.types.FileHandler):
     bl_idname = "IO_FH_stellar_blade_fbx"

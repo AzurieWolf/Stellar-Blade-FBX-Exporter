@@ -764,7 +764,6 @@ def fbx_data_bindpose_element(root, me_obj, me, scene_data, arm_obj=None, mat_wo
     if bones:
         stellar_blade_log(scene_data.settings, f"[Stellar Blade Bonefix] Using skeleton file: {skeleton_path}")
     flipped_count = 0
-    skipped_count = 0
     
     bindpose_key = get_blender_bindpose_key(arm_obj.bdata, me)
     fbx_pose = elem_data_single_int64(root, b"Pose", get_fbx_uuid_from_key(bindpose_key))
@@ -816,7 +815,7 @@ def fbx_data_bindpose_element(root, me_obj, me, scene_data, arm_obj=None, mat_wo
 
         was_flipped = False
         
-        if should_flip and scene_data.settings.stellar_blade_fix:
+        if should_flip:
             flipped_count += 1
             # Apply negative scaling to parent bones
             stellar_blade_log(scene_data.settings, f"        Flipping {bo_obj.name}...")
@@ -827,9 +826,6 @@ def fbx_data_bindpose_element(root, me_obj, me, scene_data, arm_obj=None, mat_wo
             bomat = bomat @ scale_mat
             was_flipped = True
         
-        if should_flip and not scene_data.settings.stellar_blade_fix:
-            skipped_count += 1
-            stellar_blade_log(scene_data.settings, f"        Skipping flip of {bo_obj.name} (setting not active)...")
 
         if was_flipped:
             # mark self as not inverted anymore
@@ -845,7 +841,7 @@ def fbx_data_bindpose_element(root, me_obj, me, scene_data, arm_obj=None, mat_wo
         elem_data_single_int64(fbx_posenode, b"Node", bo_obj.fbx_uuid)
         elem_data_single_float64_array(fbx_posenode, b"Matrix", matrix4_to_array(bomat))
 
-    stellar_blade_log(scene_data.settings, f"[Bind pose complete] {len(bones)} bones processed; {flipped_count} flipped; {skipped_count} flips skipped (fix disabled).")
+    stellar_blade_log(scene_data.settings, f"[Bind pose complete] {len(bones)} bones processed; {flipped_count} flipped.")
     stellar_blade_log(scene_data.settings, "======================")
 
     return mat_world_obj, mat_world_bones
@@ -3588,7 +3584,7 @@ def save_single(operator, scene, depsgraph, filepath="",
         bake_anim, bake_anim_use_all_bones, bake_anim_use_nla_strips, bake_anim_use_all_actions,
         bake_anim_step, bake_anim_simplify_factor, bake_anim_force_startend_keying,
         False, media_settings, use_custom_props, colors_type, prioritize_active_color,
-        stellar_blade_show_log, stellar_blade_fix, stellar_blade_skeleton
+        stellar_blade_show_log, True, stellar_blade_skeleton  # Legacy toggle cannot disable correction.
     )
 
     import bpy_extras.io_utils

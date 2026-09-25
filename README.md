@@ -8,6 +8,11 @@ Click the `V` button on the top right and select `Install from Disk...` then sel
 
 <img width="250" height="185" alt="Install from disk... Screenshot" src="https://github.com/user-attachments/assets/83816179-a12f-4e22-8ed3-346a324a3ea0" />
 
+## Export
+When you're ready to export, navigate to `File > Export > Stellar Blade FBX (.fbx)`.
+
+<img width="611" height="815" alt="Screenshot 1" src="https://github.com/user-attachments/assets/9c41624a-5f6b-4fa3-8064-13319b15a1c3" />
+
 ### Important
 The FBX Exporter won't work if you import with Sockets enabled. In case you're importing meshes with `.PSK` format, its required for you to change this option inside FModel.
 

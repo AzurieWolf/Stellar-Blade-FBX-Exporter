@@ -5,6 +5,7 @@ from pathlib import Path
 import ctypes
 from ctypes import wintypes
 import sys
+import json
 
 
 class ParentProcess:
@@ -59,7 +60,7 @@ def show_in_taskbar(window):
     window.deiconify()
 
 
-def run_window(log_path, title, parent=None):
+def run_window(log_path, title, parent=None, control_path=None):
     import tkinter as tk
     from tkinter import ttk
 
@@ -191,6 +192,32 @@ def run_window(log_path, title, parent=None):
         text.configure(yscrollcommand=scrollbar.set)
         text.pack(fill="both", expand=True)
 
+        def reset_log(new_title):
+            nonlocal copy_reset
+            if copy_reset is not None:
+                root.after_cancel(copy_reset)
+                copy_reset = None
+            copy_button.configure(text="Copy Log")
+            window.title(new_title)
+            titlebar.configure(text=new_title)
+            text.configure(state="normal")
+            text.delete("1.0", "end")
+            text.configure(state="disabled")
+            # Restore a minimized window without replacing it or its geometry.
+            if sys.platform == "win32":
+                user32 = ctypes.WinDLL("user32")
+                user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+                user32.GetAncestor.restype = wintypes.HWND
+                user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+                user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+                user32.SetForegroundWindow.restype = wintypes.BOOL
+                hwnd = user32.GetAncestor(window.winfo_id(), 2)
+                user32.ShowWindow(hwnd, 9)
+                user32.SetForegroundWindow(hwnd)
+            window.lift()
+            window.focus_force()
+
+        state["reset_log"] = reset_log
         state["window"] = window
         state["text"] = text
         state["closed"] = False
@@ -203,7 +230,18 @@ def run_window(log_path, title, parent=None):
     previous_text = ""
 
     def refresh_log():
-        nonlocal previous_text
+        nonlocal previous_text, log_path
+        if control_path is not None:
+            try:
+                request = json.loads(control_path.read_text(encoding="utf-8"))
+                next_path = Path(request["log_path"])
+                next_title = request["title"]
+            except (OSError, ValueError, KeyError, TypeError):
+                return
+            if next_path != log_path:
+                log_path = next_path
+                previous_text = ""
+                state["reset_log"](next_title)
         try:
             content = log_path.read_text(encoding="utf-8")
         except (OSError, UnicodeError):
@@ -244,11 +282,12 @@ def main():
     parser.add_argument("--log-path", type=Path, required=True)
     parser.add_argument("--title", default="Stellar Blade FBX Export Log")
     parser.add_argument("--parent-pid", type=int, help="Close when this Blender process exits")
+    parser.add_argument("--control-path", type=Path, help="Requests to reuse this log window")
     args = parser.parse_args()
     parent = ParentProcess(args.parent_pid) if args.parent_pid is not None else None
     try:
         if parent is None or parent.is_alive():
-            run_window(args.log_path, args.title, parent)
+            run_window(args.log_path, args.title, parent, args.control_path)
     finally:
         if parent is not None:
             parent.close()

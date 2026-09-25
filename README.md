@@ -41,3 +41,13 @@ The release ZIP includes that complete folder as `log_window/`. The small `addon
 Salt (Providing a list with the inverted bones)
 
 This is a fork of [Blender_SB_FBX_Fixes](https://github.com/ByLemi21/Blender_SB_FBX_Fixes) modified to be a standalone addon.
+
+## Stellar Blade FBX import
+
+The Stellar Blade import panel appears above Include, with Skeleton File and Show Log Window in the same order as the export panel. Bone correction is automatic: importing reverses the exporter's bind-pose flips before Blender builds the armature.
+
+New exports record each bone's flip decision for exact reversal, including posed rigs. Older exports use the selected EVE/Lily skeleton and compare the bind pose with the original FBX bone transforms. Select the same skeleton used for export; legacy detection assumes those model transforms have not been independently reflected by another tool. Unknown, unmarked bones are left unchanged.
+
+The import log lists restored bones and whether they were identified from export metadata or legacy transforms. Blender 5 animation import uses the current Action slot API.
+
+Developers can run the round-trip regression with `blender --background --factory-startup --python-exit-code 1 --python tests/test_stellar_blade_roundtrip.py -- --animation`. Add `--lily --mirrored` to cover Lily and negative armature scale. The test uses a factory scene and temporary FBX files.

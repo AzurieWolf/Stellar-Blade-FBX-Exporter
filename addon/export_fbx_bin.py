@@ -840,6 +840,8 @@ def fbx_data_bindpose_element(root, me_obj, me, scene_data, arm_obj=None, mat_wo
         fbx_posenode = elem_empty(fbx_pose, b"PoseNode")
         elem_data_single_int64(fbx_posenode, b"Node", bo_obj.fbx_uuid)
         elem_data_single_float64_array(fbx_posenode, b"Matrix", matrix4_to_array(bomat))
+        # Preserve the exact decision for round-trip import, including posed rigs.
+        elem_data_single_int32(fbx_posenode, b"StellarBladeBindFlip", int(was_flipped))
 
     stellar_blade_log(scene_data.settings, f"[Bind pose complete] {len(bones)} bones processed; {flipped_count} flipped.")
     stellar_blade_log(scene_data.settings, "======================")

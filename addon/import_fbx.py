@@ -948,7 +948,8 @@ def blen_read_animations_action_item(action, item, cnodes, fps, anim_offset, glo
         else:  # Euler
             props[1] = (bl_obj.path_from_id("rotation_euler"), 3, grpname or "Euler Rotation")
 
-    blen_curves = [action.fcurves.new(prop, index=channel, action_group=grpname)
+    group_keyword = "action_group" if isinstance(action, bpy.types.Action) else "group_name"
+    blen_curves = [action.fcurves.new(prop, index=channel, **{group_keyword: grpname})
                    for prop, nbr_channels, grpname in props for channel in range(nbr_channels)]
 
     if isinstance(item, Material):
@@ -1097,13 +1098,22 @@ def blen_read_animations(fbx_tmpl_astack, fbx_tmpl_alayer, stacks, scene, anim_o
                         action_name = "|".join((id_data.name, stack_name, layer_name))
                     actions[key] = action = bpy.data.actions.new(action_name)
                     action.use_fake_user = True
+                    if bpy.app.version >= (5, 0, 0):
+                        action.slots.new(id_data.id_type, "Slot")
                 # If none yet assigned, assign this action to id_data.
                 if not id_data.animation_data:
                     id_data.animation_data_create()
                 if not id_data.animation_data.action:
                     id_data.animation_data.action = action
+                    if bpy.app.version >= (5, 0, 0):
+                        id_data.animation_data.action_slot = action.slots[0]
                 # And actually populate the action!
-                blen_read_animations_action_item(action, item, cnodes, scene.render.fps, anim_offset, global_scale,
+                if bpy.app.version >= (5, 0, 0):
+                    from bpy_extras.anim_utils import action_ensure_channelbag_for_slot
+                    curve_container = action_ensure_channelbag_for_slot(action, action.slots[0])
+                else:
+                    curve_container = action
+                blen_read_animations_action_item(curve_container, item, cnodes, scene.render.fps, anim_offset, global_scale,
                                                  shape_key_values, fbx_ktime)
 
     # If the minimum/maximum animated value is outside the slider range of the shape key, attempt to expand the slider
@@ -3044,7 +3054,9 @@ def load(operator, context, filepath="",
          primary_bone_axis='Y',
          secondary_bone_axis='X',
          use_prepost_rot=True,
-         colors_type='SRGB'):
+         colors_type='SRGB',
+         stellar_blade_skeleton='EVE',
+         stellar_blade_show_log=False):
 
     global fbx_elem_nil
     fbx_elem_nil = FBXElem('', (), (), ())
@@ -3055,6 +3067,23 @@ def load(operator, context, filepath="",
 
     from . import parse_fbx
     from .fbx_utils import RIGHT_HAND_AXES, FBX_FRAMERATES
+    from .stellar_blade_import import BIND_FLIP_ELEMENT, reference_bone_names, restore_bind_poses
+
+    def import_log(message):
+        print(message)
+        if stellar_blade_show_log:
+            from . import stellar_blade_log_window
+            stellar_blade_log_window.append(message)
+
+    import_log(f"FBX import starting... {filepath}")
+    try:
+        stellar_reference_names = reference_bone_names(stellar_blade_skeleton)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        message = f"Could not read the Stellar Blade reference skeleton: {exc}"
+        operator.report({'ERROR'}, message)
+        import_log(message)
+        return {'CANCELLED'}
+    import_log(f"[Stellar Blade import] Reference skeleton: {stellar_blade_skeleton}")
 
     start_time_proc = time.process_time()
     start_time_sys = time.time()
@@ -3442,6 +3471,7 @@ def load(operator, context, filepath="",
         # and you can have several clusters per bone!
         # Maybe some conversion can be applied to put them all into the same frame of reference?
 
+        stellar_bind_flip_flags = {}
         # get the bind pose from pose elements
         for a_uuid, a_item in fbx_table_nodes.items():
             fbx_obj, bl_data = a_item
@@ -3463,6 +3493,9 @@ def load(operator, context, filepath="",
                     # Store the matrix in the helper node.
                     # There may be several bind pose matrices for the same node, but in tests they seem to be identical.
                     bone.bind_matrix = matrix  # global space
+                    flip_elem = elem_find_first(fbx_pose_node, BIND_FLIP_ELEMENT)
+                    if flip_elem is not None and flip_elem.props and flip_elem.props[0] in (0, 1):
+                        stellar_bind_flip_flags[node] = int(flip_elem.props[0])
 
         # get clusters and bind pose
         for helper_uuid, helper_node in fbx_helper_nodes.items():
@@ -3524,6 +3557,10 @@ def load(operator, context, filepath="",
                                 meshes.add(mesh_node)
 
                 helper_node.clusters.append((fbx_cluster, meshes))
+
+        # Reconstruct mesh bind matrices using the original clusters above first.
+        # Only then undo bone reflections, before localizing the bone hierarchy.
+        restore_bind_poses(fbx_helper_nodes, stellar_bind_flip_flags, stellar_reference_names, import_log)
 
         # convert bind poses from global space into local space
         root_helper.make_bind_pose_local()
@@ -4030,4 +4067,5 @@ def load(operator, context, filepath="",
     perfmon.level_down()
 
     perfmon.level_down("Import finished.")
+    import_log("Import finished in %.4f sec." % (time.time() - start_time_sys))
     return {'FINISHED'}

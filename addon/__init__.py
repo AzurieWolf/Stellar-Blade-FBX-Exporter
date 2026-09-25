@@ -198,11 +198,27 @@ class ImportStellarBladeFBX(bpy.types.Operator, ImportHelper):
         default=True,
     )
 
+    stellar_blade_skeleton: EnumProperty(
+        name="Skeleton File",
+        items=(
+            ("EVE", "EVE", "Use EVE's reference skeleton for older FBX exports"),
+            ("LILY", "Lily", "Use Lily's reference skeleton for older FBX exports"),
+        ),
+        description="Reference skeleton used to identify bone flips in older exports",
+        default="EVE",
+    )
+    stellar_blade_show_log: BoolProperty(
+        name="Show Log Window",
+        description="Show a log of the Stellar Blade bone corrections during import",
+        default=True,
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False  # No animation.
 
+        import_panel_stellar_blade(layout, self)
         import_panel_include(layout, self)
         import_panel_transform(layout, self)
         import_panel_animation(layout, self)
@@ -213,6 +229,11 @@ class ImportStellarBladeFBX(bpy.types.Operator, ImportHelper):
 
         from . import import_fbx
         import os
+
+        if self.stellar_blade_show_log:
+            from . import stellar_blade_log_window
+            if not stellar_blade_log_window.start(title="Stellar Blade FBX Import Log"):
+                self.report({'WARNING'}, "Could not show Stellar Blade FBX import log window")
 
         if self.files:
             ret = {'CANCELLED'}
@@ -227,6 +248,16 @@ class ImportStellarBladeFBX(bpy.types.Operator, ImportHelper):
 
     def invoke(self, context, event):
         return self.invoke_popup(context)
+
+
+def import_panel_stellar_blade(layout, operator):
+    header, body = layout.panel("FBX_import_stellarblade", default_closed=False)
+    header.label(text="Stellar Blade")
+    if body:
+        body.label(text="Stellar Blade FBX Importer")
+        body.label(text="Reverses the export bone fix.")
+        body.prop(operator, "stellar_blade_skeleton")
+        body.prop(operator, "stellar_blade_show_log")
 
 
 def import_panel_include(layout, operator):

@@ -590,12 +590,12 @@ class ExportStellarBladeFBX(bpy.types.Operator, ExportHelper):
         is_file_browser = context.space_data.type == 'FILE_BROWSER'
 
         export_main(layout, self, is_file_browser)
+        export_panel_stellar_blade(layout, self)
         export_panel_include(layout, self, is_file_browser)
         export_panel_transform(layout, self)
         export_panel_geometry(layout, self)
         export_panel_armature(layout, self)
         export_panel_animation(layout, self)
-        export_panel_stellar_blade(layout, self)
 
     @property
     def check_extension(self):
@@ -719,13 +719,12 @@ def export_panel_animation(layout, operator):
 
 def export_panel_stellar_blade(layout, operator):
     header, body = layout.panel("FBX_export_stellarblade", default_closed=False)
-    header.label(text="StellarBlade")
+    header.label(text="Stellar Blade")
     if body:
         body.label(text="Stellar Blade FBX Exporter")
         body.prop(operator, "stellar_blade_show_log")
         body.prop(operator, "stellar_blade_fix")
         body.prop(operator, "stellar_blade_skeleton")
-
 
 class IO_FH_stellar_blade_fbx(bpy.types.FileHandler):
     bl_idname = "IO_FH_stellar_blade_fbx"

@@ -32,6 +32,13 @@ def snapshot():
     meshes = []
     for obj in bpy.context.scene.objects:
         if obj.type == 'MESH':
+            from bpy_extras.node_shader_utils import PrincipledBSDFWrapper
+            assert len(obj.data.materials) == 1, 'Material assignment was lost'
+            shader = PrincipledBSDFWrapper(obj.data.materials[0], is_readonly=True)
+            assert shader.node_principled_bsdf is not None
+            assert max(abs(a-b) for a,b in zip(shader.base_color, (0.2, 0.4, 0.6))) < 0.0001
+            assert abs(shader.metallic - 0.25) < 0.0001
+            assert abs(shader.roughness - 0.35) < 0.0001
             evaluated = obj.evaluated_get(graph)
             mesh = evaluated.to_mesh()
             meshes.append([evaluated.matrix_world @ vertex.co for vertex in mesh.vertices])
@@ -74,6 +81,13 @@ for mesh_index in range(2):
     data.from_pydata([(0,0,0), (1,1,0), (0,2,1), (1,3,1)], [], [(0,1,2),(1,2,3)])
     obj = bpy.data.objects.new(data.name, data)
     bpy.context.collection.objects.link(obj)
+    material = bpy.data.materials.new(f'TestMaterial{mesh_index}')
+    from bpy_extras.node_shader_utils import PrincipledBSDFWrapper
+    shader = PrincipledBSDFWrapper(material, is_readonly=False)
+    shader.base_color = (0.2, 0.4, 0.6)
+    shader.metallic = 0.25
+    shader.roughness = 0.35
+    obj.data.materials.append(material)
     obj.parent = arm
     mod = obj.modifiers.new('Armature', 'ARMATURE')
     mod.object = arm

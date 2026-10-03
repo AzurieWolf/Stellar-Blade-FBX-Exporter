@@ -462,12 +462,12 @@ class ExportStellarBladeFBX(bpy.types.Operator, ExportHelper):
         name="Tangent Space",
         description="Add binormal and tangent vectors, together with normal they form the tangent space "
         "(will only work correctly with tris/quads only meshes!)",
-        default=True,
+        default=False,
     )
     use_triangles: BoolProperty(
         name="Triangulate Faces",
         description="Convert all faces to triangles",
-        default=True,
+        default=False,
     )
     use_custom_props: BoolProperty(
         name="Custom Properties",
